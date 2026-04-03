@@ -376,6 +376,199 @@ async function promptForKey(prompt: string): Promise<string> {
   });
 }
 
+// ChatGPT OAuth constants
+const CHATGPT_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
+const CHATGPT_AUTH_URL = 'https://auth.openai.com/oauth/authorize';
+const CHATGPT_TOKEN_URL = 'https://auth.openai.com/oauth/token';
+const CHATGPT_REDIRECT_URI = 'http://localhost:1455/auth/callback';
+const CHATGPT_SCOPE = 'openid profile email offline_access';
+const CHATGPT_MODELS = [
+  'gpt-5.4',
+  'gpt-5.4-mini',
+  'gpt-5.3-codex',
+  'gpt-5.2-codex',
+];
+
+async function openBrowser(url: string): Promise<void> {
+  const { exec } = await import('node:child_process');
+  const platform = process.platform;
+  const cmd =
+    platform === 'win32' ? `start "" "${url}"` :
+    platform === 'darwin' ? `open "${url}"` :
+    `xdg-open "${url}"`;
+  exec(cmd);
+}
+
+async function startCallbackServer(port: number): Promise<{ code: string; state: string }> {
+  const http = await import('node:http');
+  return new Promise((resolve, reject) => {
+    const server = http.createServer((req, res) => {
+      const urlObj = new URL(req.url ?? '/', `http://localhost:${port}`);
+      const code = urlObj.searchParams.get('code');
+      const state = urlObj.searchParams.get('state');
+      const error = urlObj.searchParams.get('error');
+
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(`<html><body><h2>${error ? 'Authentication failed: ' + error : 'Authentication successful!'}</h2><p>You can close this tab.</p></body></html>`);
+      server.close();
+
+      if (error || !code || !state) {
+        reject(new Error(error ?? 'Missing code or state in callback'));
+      } else {
+        resolve({ code, state });
+      }
+    });
+
+    server.listen(port, () => {
+      // server ready
+    });
+
+    server.on('error', reject);
+
+    // Timeout after 5 minutes
+    setTimeout(() => {
+      server.close();
+      reject(new Error('Authentication timed out. Please try again.'));
+    }, 5 * 60 * 1000);
+  });
+}
+
+async function exchangeCodeForTokens(
+  code: string,
+  codeVerifier: string,
+): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
+  const https = await import('node:https');
+  const body = JSON.stringify({
+    grant_type: 'authorization_code',
+    code,
+    redirect_uri: CHATGPT_REDIRECT_URI,
+    client_id: CHATGPT_CLIENT_ID,
+    code_verifier: codeVerifier,
+  });
+
+  return new Promise((resolve, reject) => {
+    const url = new URL(CHATGPT_TOKEN_URL);
+    const req = https.request({
+      hostname: url.hostname,
+      path: url.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+      },
+    }, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data) as {
+            access_token?: string;
+            refresh_token?: string;
+            expires_in?: number;
+            error?: string;
+          };
+          if (!parsed.access_token) {
+            reject(new Error(`Token exchange failed: ${parsed.error ?? data}`));
+            return;
+          }
+          resolve({
+            accessToken: parsed.access_token,
+            refreshToken: parsed.refresh_token ?? '',
+            expiresIn: parsed.expires_in ?? 3600,
+          });
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+/**
+ * Handles ChatGPT Plus/Pro OAuth authentication (uses subscription, no API credits)
+ */
+export async function handleChatGPTAuth(settings: LoadedSettings): Promise<void> {
+  const cryptoMod = await import('node:crypto');
+  const pathMod = await import('node:path');
+  const fsMod = await import('node:fs');
+  const osMod = await import('node:os');
+
+  // Generate PKCE
+  const codeVerifier = cryptoMod.randomBytes(32).toString('base64url');
+  const codeChallenge = cryptoMod.createHash('sha256').update(codeVerifier).digest().toString('base64url');
+  const state = cryptoMod.randomBytes(16).toString('hex');
+
+  // Build authorization URL
+  const authUrl = new URL(CHATGPT_AUTH_URL);
+  authUrl.searchParams.set('client_id', CHATGPT_CLIENT_ID);
+  authUrl.searchParams.set('redirect_uri', CHATGPT_REDIRECT_URI);
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('scope', CHATGPT_SCOPE);
+  authUrl.searchParams.set('state', state);
+  authUrl.searchParams.set('code_challenge', codeChallenge);
+  authUrl.searchParams.set('code_challenge_method', 'S256');
+
+  writeStdoutLine(t('\nOpening browser for ChatGPT authentication...'));
+  writeStdoutLine(t('If the browser does not open, visit this URL manually:\n'));
+  writeStdoutLine(authUrl.toString());
+  writeStdoutLine(t('\nWaiting for authentication (5 min timeout)...\n'));
+
+  // Open browser
+  await openBrowser(authUrl.toString());
+
+  // Wait for callback
+  const { code, state: returnedState } = await startCallbackServer(1455);
+
+  if (returnedState !== state) {
+    throw new Error('State mismatch — possible CSRF attack. Please try again.');
+  }
+
+  writeStdoutLine(t('Authorization code received. Exchanging for tokens...'));
+
+  const { accessToken, refreshToken, expiresIn } = await exchangeCodeForTokens(code, codeVerifier);
+
+  // Decode account ID from JWT
+  const parts = accessToken.split('.');
+  let accountId = '';
+  if (parts.length >= 2) {
+    try {
+      const payload = JSON.parse(Buffer.from(parts[1]!, 'base64url').toString('utf-8')) as { sub?: string };
+      accountId = payload.sub ?? '';
+    } catch { /* ignore */ }
+  }
+
+  // Save tokens
+  const tokens = {
+    accessToken,
+    refreshToken,
+    expiresAt: Date.now() + expiresIn * 1000,
+    accountId,
+  };
+  const tokensPath = pathMod.join(osMod.homedir(), '.ceroclawd', 'chatgpt-tokens.json');
+  fsMod.writeFileSync(tokensPath, JSON.stringify(tokens, null, 2), 'utf-8');
+
+  // Update settings
+  const scope = getPersistScopeForModelSelection(settings);
+  settings.setValue(scope, 'security.auth.selectedType', AuthType.USE_CHATGPT_OAUTH);
+  settings.setValue(scope, 'model.name', 'gpt-5.4');
+
+  const chatgptModels = CHATGPT_MODELS.map(id => ({
+    id,
+    name: id,
+    baseUrl: 'https://api.openai.com/v1/codex',
+  }));
+  settings.setValue(scope, `modelProviders.${AuthType.USE_CHATGPT_OAUTH}`, chatgptModels);
+
+  writeStdoutLine(t('\nChatGPT authenticated successfully!'));
+  writeStdoutLine(t('Account ID: {{id}}', { id: accountId || 'unknown' }));
+  writeStdoutLine(t('Active model: gpt-5.4'));
+  writeStdoutLine(t('Available: gpt-5.4, gpt-5.4-mini, gpt-5.3-codex, gpt-5.2-codex'));
+  writeStdoutLine(t('Tokens saved to ~/.ceroclawd/chatgpt-tokens.json'));
+}
+
 /**
  * Handles OpenAI (GPT-4o, GPT-4.1, Codex) authentication via API key
  */
@@ -446,15 +639,28 @@ export async function runInteractiveAuth() {
   const hasGLM = !!(process.env['ZAI_API_KEY'] || process.env['ANTHROPIC_API_KEY']);
   const hasOpenAI = !!process.env[OPENAI_ENV_KEY];
 
+  const { existsSync } = await import('node:fs');
+  const { join: pathJoin } = await import('node:path');
+  const { homedir: homedirFn } = await import('node:os');
+  const hasChatGPT = existsSync(pathJoin(homedirFn(), '.ceroclawd', 'chatgpt-tokens.json'));
+
   const glmStatus = hasGLM
     ? `${currentType === AuthType.USE_ANTHROPIC ? currentModel || 'glm-5.1' : 'glm-5.1'}${mark(AuthType.USE_ANTHROPIC)}`
-    : 'not configured - run: ceroclawd auth glm';
+    : 'not configured';
   const openaiStatus = hasOpenAI
-    ? `${currentType === AuthType.USE_OPENAI ? currentModel || 'gpt-4o' : 'gpt-4o'}${mark(AuthType.USE_OPENAI)}`
-    : 'not configured - run: ceroclawd auth openai';
+    ? `${currentType === AuthType.USE_OPENAI ? currentModel || 'gpt-5.4' : 'gpt-5.4'}${mark(AuthType.USE_OPENAI)}`
+    : 'not configured';
+  const chatgptStatus = hasChatGPT
+    ? `${currentType === AuthType.USE_CHATGPT_OAUTH ? currentModel || 'gpt-5.4' : 'gpt-5.4'}${mark(AuthType.USE_CHATGPT_OAUTH)}`
+    : 'not configured';
 
   const selector = new InteractiveSelector(
     [
+      {
+        value: 'chatgpt' as const,
+        label: t('ChatGPT Plus/Pro (OAuth - uses subscription)'),
+        description: t('gpt-5.4, gpt-5.3-codex - no API credits needed - {{s}}', { s: chatgptStatus }),
+      },
       {
         value: 'glm' as const,
         label: t('GLM / Z.AI'),
@@ -462,8 +668,8 @@ export async function runInteractiveAuth() {
       },
       {
         value: 'openai' as const,
-        label: t('OpenAI (GPT-5.4, Codex)'),
-        description: t('GPT-5.4, GPT-5.4 Mini, GPT-5.3-Codex via api.openai.com - {{s}}', { s: openaiStatus }),
+        label: t('OpenAI API key (pay per token)'),
+        description: t('GPT-5.4, GPT-5.4 Mini, GPT-5.3-Codex - {{s}}', { s: openaiStatus }),
       },
       {
         value: 'ceroclawd-oauth' as const,
@@ -481,7 +687,10 @@ export async function runInteractiveAuth() {
 
   const choice = await selector.select();
 
-  if (choice === 'glm') {
+  if (choice === 'chatgpt') {
+    await handleChatGPTAuth(settings);
+    process.exit(0);
+  } else if (choice === 'glm') {
     if (hasGLM) {
       const scope = getPersistScopeForModelSelection(settings);
       settings.setValue(scope, 'security.auth.selectedType', AuthType.USE_ANTHROPIC);

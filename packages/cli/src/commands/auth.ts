@@ -9,6 +9,7 @@ import {
   handleCeroclawdAuth,
   handleOpenAIAuth,
   handleGLMAuth,
+  handleChatGPTAuth,
   runInteractiveAuth,
   showAuthStatus,
 } from './auth/handler.js';
@@ -48,6 +49,16 @@ const codePlanCommand = {
     } else {
       await handleCeroclawdAuth('coding-plan', {});
     }
+  },
+};
+
+const chatgptCommand = {
+  command: 'chatgpt',
+  describe: t('Authenticate with ChatGPT Plus/Pro subscription (OAuth - no API credits needed)'),
+  handler: async () => {
+    const settings = loadSettings();
+    await handleChatGPTAuth(settings);
+    process.exit(0);
   },
 };
 
@@ -96,6 +107,7 @@ export const authCommand: CommandModule = {
   describe: t('Configure authentication: GLM/Z.AI, OpenAI, Ceroclawd OAuth, or Alibaba Cloud Coding Plan'),
   builder: (yargs: Argv) =>
     yargs
+      .command(chatgptCommand)
       .command(glmCommand)
       .command(openaiCommand)
       .command(ceroclawdOauthCommand)

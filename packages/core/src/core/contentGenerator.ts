@@ -60,6 +60,7 @@ export enum AuthType {
   USE_ANTHROPIC = 'anthropic',
   USE_OLLAMA = 'ollama',
   USE_GLM = 'glm',
+  USE_CHATGPT_OAUTH = 'chatgpt-oauth',
 }
 
 /**
@@ -360,6 +361,14 @@ export async function createContentGenerator(
       './geminiContentGenerator/index.js'
     );
     baseGenerator = createGeminiContentGenerator(generatorConfig, config);
+  } else if (authType === AuthType.USE_CHATGPT_OAUTH) {
+    const { ChatGPTOAuthContentGenerator } = await import(
+      './chatgptContentGenerator/index.js'
+    );
+    baseGenerator = new ChatGPTOAuthContentGenerator(
+      generatorConfig.model,
+      config,
+    );
   } else {
     throw new Error(
       `Error creating contentGenerator: Unsupported authType: ${authType}`,

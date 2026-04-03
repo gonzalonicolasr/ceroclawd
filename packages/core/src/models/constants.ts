@@ -97,6 +97,11 @@ export const AUTH_ENV_MAPPINGS = {
     baseUrl: ['GLM_BASE_URL'],
     model: ['GLM_MODEL'],
   },
+  'chatgpt-oauth': {
+    apiKey: [],
+    baseUrl: [],
+    model: [],
+  },
 } as const satisfies Record<AuthType, AuthEnvMapping>;
 
 export const DEFAULT_MODELS = {

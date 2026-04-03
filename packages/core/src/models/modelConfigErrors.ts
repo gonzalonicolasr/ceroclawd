@@ -18,6 +18,8 @@ export function getDefaultApiKeyEnvVar(authType: string | undefined): string {
       return ''; // Ollama doesn't require API key
     case 'glm':
       return 'GLM_API_KEY';
+    case 'chatgpt-oauth':
+      return ''; // Uses OAuth tokens, no API key
     default:
       return 'API_KEY';
   }
