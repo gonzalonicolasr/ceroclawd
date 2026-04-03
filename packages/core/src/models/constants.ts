@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 Qwen Team
+ * Copyright 2025 Ceroclawd Team
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -82,7 +82,7 @@ export const AUTH_ENV_MAPPINGS = {
     baseUrl: [],
     model: ['GOOGLE_MODEL'],
   },
-  'qwen-oauth': {
+  'ceroclawd-oauth': {
     apiKey: [],
     baseUrl: [],
     model: [],
@@ -101,13 +101,13 @@ export const AUTH_ENV_MAPPINGS = {
 
 export const DEFAULT_MODELS = {
   openai: MAINLINE_CODER_MODEL,
-  'qwen-oauth': DEFAULT_CEROCLAW_MODEL,
-  ollama: 'qwen2.5-coder:32b-instruct-q4_K_M',
+  'ceroclawd-oauth': DEFAULT_CEROCLAW_MODEL,
+  ollama: 'ceroclawd2.5-coder:32b-instruct-q4_K_M',
   glm: 'glm-4.5',
 } as Partial<Record<AuthType, string>>;
 
 /**
- * Hard-coded Qwen OAuth models that are always available.
+ * Hard-coded Ceroclawd OAuth models that are always available.
  * These cannot be overridden by user configuration.
  */
 export const CEROCLAW_OAUTH_MODELS: ModelConfig[] = [
@@ -115,7 +115,7 @@ export const CEROCLAW_OAUTH_MODELS: ModelConfig[] = [
     id: 'coder-model',
     name: 'coder-model',
     description:
-      'Qwen 3.5 Plus � efficient hybrid model with leading coding performance',
+      'Ceroclawd 3.5 Plus � efficient hybrid model with leading coding performance',
     capabilities: { vision: true },
   },
 ];

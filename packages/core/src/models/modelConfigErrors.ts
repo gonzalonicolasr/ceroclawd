@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2025 Qwen Team
+ * Copyright 2025 Ceroclawd Team
  * SPDX-License-Identifier: Apache-2.0
  */
 

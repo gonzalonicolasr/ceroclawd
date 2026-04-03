@@ -54,7 +54,7 @@ export interface ContentGenerator {
 
 export enum AuthType {
   USE_OPENAI = 'openai',
-  CEROCLAW_OAUTH = 'qwen-oauth',
+  CEROCLAW_OAUTH = 'ceroclawd-oauth',
   USE_GEMINI = 'gemini',
   USE_VERTEX_AI = 'vertex-ai',
   USE_ANTHROPIC = 'anthropic',
@@ -228,7 +228,7 @@ export function validateModelConfig(
 ): ModelConfigValidationResult {
   const errors: Error[] = [];
 
-  // Qwen OAuth doesn't need validation - it uses dynamic tokens
+  // Ceroclawd OAuth doesn't need validation - it uses dynamic tokens
   if (config.authType === AuthType.CEROCLAW_OAUTH) {
     return { valid: true, errors: [] };
   }
@@ -325,20 +325,20 @@ export async function createContentGenerator(
     );
     baseGenerator = createOpenAIContentGenerator(generatorConfig, config);
   } else if (authType === AuthType.CEROCLAW_OAUTH) {
-    const { getQwenOAuthClient: getQwenOauthClient } = await import(
-      '../qwen/qwenOAuth2.js'
+    const { getCeroclawdOAuthClient: getCeroclawdOauthClient } = await import(
+      '../ceroclawd/ceroclawdOAuth2.js'
     );
-    const { QwenContentGenerator } = await import(
-      '../qwen/qwenContentGenerator.js'
+    const { CeroclawdContentGenerator } = await import(
+      '../ceroclawd/ceroclawdContentGenerator.js'
     );
 
     try {
-      const qwenClient = await getQwenOauthClient(
+      const ceroclawdClient = await getCeroclawdOauthClient(
         config,
         isInitialAuth ? { requireCachedCredentials: true } : undefined,
       );
-      baseGenerator = new QwenContentGenerator(
-        qwenClient,
+      baseGenerator = new CeroclawdContentGenerator(
+        ceroclawdClient,
         generatorConfig,
         config,
       );
