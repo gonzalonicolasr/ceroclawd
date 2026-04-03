@@ -53,7 +53,7 @@ const codePlanCommand = {
 
 const openaiCommand = {
   command: 'openai',
-  describe: t('Configure OpenAI (GPT-4o, GPT-4.1, Codex Mini)'),
+  describe: t('Configure OpenAI (GPT-5.4, GPT-5.4 Mini, GPT-5.3-Codex)'),
   builder: (yargs: Argv) =>
     yargs.option('key', {
       alias: 'k',

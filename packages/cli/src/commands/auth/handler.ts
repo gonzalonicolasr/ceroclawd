@@ -29,9 +29,10 @@ import { InteractiveSelector } from './interactiveSelector.js';
 const OPENAI_ENV_KEY = 'OPENAI_API_KEY';
 const OPENAI_BASE_URL = 'https://api.openai.com/v1';
 const OPENAI_MODELS: ModelConfig[] = [
+  { id: 'gpt-5.4', name: 'GPT-5.4 (flagship)', envKey: OPENAI_ENV_KEY, baseUrl: OPENAI_BASE_URL },
+  { id: 'gpt-5.4-mini', name: 'GPT-5.4 Mini (fast)', envKey: OPENAI_ENV_KEY, baseUrl: OPENAI_BASE_URL },
+  { id: 'gpt-5.3-codex', name: 'GPT-5.3-Codex (agentic coding)', envKey: OPENAI_ENV_KEY, baseUrl: OPENAI_BASE_URL },
   { id: 'gpt-4o', name: 'GPT-4o', envKey: OPENAI_ENV_KEY, baseUrl: OPENAI_BASE_URL },
-  { id: 'gpt-4.1', name: 'GPT-4.1', envKey: OPENAI_ENV_KEY, baseUrl: OPENAI_BASE_URL },
-  { id: 'codex-mini-latest', name: 'Codex Mini', envKey: OPENAI_ENV_KEY, baseUrl: OPENAI_BASE_URL },
 ];
 
 // GLM / Z.AI constants
@@ -393,10 +394,10 @@ export async function handleOpenAIAuth(
 
   settings.setValue(scope, `modelProviders.${AuthType.USE_OPENAI}`, OPENAI_MODELS);
   settings.setValue(scope, 'security.auth.selectedType', AuthType.USE_OPENAI);
-  settings.setValue(scope, 'model.name', 'gpt-4o');
+  settings.setValue(scope, 'model.name', 'gpt-5.4');
 
-  writeStdoutLine(t('OpenAI configured. Active model: gpt-4o.'));
-  writeStdoutLine(t('Available models: GPT-4o, GPT-4.1, Codex Mini.'));
+  writeStdoutLine(t('OpenAI configured. Active model: gpt-5.4.'));
+  writeStdoutLine(t('Available models: GPT-5.4, GPT-5.4 Mini, GPT-5.3-Codex, GPT-4o.'));
   writeStdoutLine(t('Switch models with: ceroclawd --model <model-id>'));
 }
 
@@ -461,8 +462,8 @@ export async function runInteractiveAuth() {
       },
       {
         value: 'openai' as const,
-        label: t('OpenAI (GPT-4o, Codex)'),
-        description: t('GPT-4o, GPT-4.1, Codex via api.openai.com - {{s}}', { s: openaiStatus }),
+        label: t('OpenAI (GPT-5.4, Codex)'),
+        description: t('GPT-5.4, GPT-5.4 Mini, GPT-5.3-Codex via api.openai.com - {{s}}', { s: openaiStatus }),
       },
       {
         value: 'ceroclawd-oauth' as const,
@@ -495,8 +496,8 @@ export async function runInteractiveAuth() {
     if (hasOpenAI) {
       const scope = getPersistScopeForModelSelection(settings);
       settings.setValue(scope, 'security.auth.selectedType', AuthType.USE_OPENAI);
-      settings.setValue(scope, 'model.name', 'gpt-4o');
-      writeStdoutLine(t('Switched to OpenAI (gpt-4o).'));
+      settings.setValue(scope, 'model.name', 'gpt-5.4');
+      writeStdoutLine(t('Switched to OpenAI (gpt-5.4).'));
       process.exit(0);
     } else {
       await handleOpenAIAuth(settings);
@@ -554,7 +555,7 @@ export async function showAuthStatus(): Promise<void> {
       } else {
         writeStdoutLine(t('Authentication Method: OpenAI'));
         writeStdoutLine(t('  Base URL: https://api.openai.com/v1'));
-        writeStdoutLine(t('  Model: {{m}}', { m: mergedSettings.model?.name || 'gpt-4o' }));
+        writeStdoutLine(t('  Model: {{m}}', { m: mergedSettings.model?.name || 'gpt-5.4' }));
         writeStdoutLine(t('  API key: {{s}}', { s: hasOpenAIKey ? 'configured' : 'MISSING - run: ceroclawd auth openai' }));
       }
     } else if (selectedType === AuthType.CEROCLAW_OAUTH) {
